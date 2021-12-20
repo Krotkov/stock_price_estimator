@@ -325,27 +325,27 @@ company_vectorizer = Pipeline([('feats', FeatureUnion([('word_ngram', word_vecto
 
 company_vectorizer = company_vectorizer.fit(train_data['cleanedText'])
 
-
 # print(train_data['cleanedText'].shape)
 x_train = (company_vectorizer.transform(train_data['cleanedText']))
+x_test = (company_vectorizer.transform(test_data['cleanedText']))
 
-
-# print(train_data["sentiment"])
-# print(train_data["sentiment"].shape)
-x_train = np.hstack((x_train, train_data["sentiment"]))
-print(x_train)
-print(x_train.shape)
+# np.reshape(sentiment, (-1, 1))
+# print(sentiment.shape)
+# sentiment = (np.reshape(train_data["sentiment"].values, (-1, 1)))
+# x_train = np.column_stack((x_train.todense(), train_data["sentiment"].values.T))
+# x_test = np.column_stack((x_test.todense(), test_data["sentiment"].values.T))
 # print(company_vectorizer.transform(train_data['cleanedText']).shape)
 # print(train_data["sentiment"].shape)
 y_train = train_data['delta']
 y_test = test_data['delta']
 
 from sklearn.svm import LinearSVC
-from sklearn.metrics import classification_report
+from sklearn import ensemble
+from sklearn.metrics import classification_report, r2_score
 
 # print(x_train.shape)
 
-clf = LinearSVC()
+clf = LinearSVC()#SVC(tol=10**-12, max_iter=1000000)
 clf.fit(x_train, y_train)
 
 pred_company = clf.predict(x_test)

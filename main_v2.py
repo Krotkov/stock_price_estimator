@@ -107,6 +107,14 @@ def get_company(tweet_text, tweet_author):
     return "TI HUI", "Gavno"
 
 
+def ff(a):
+    if a > 0.5:
+        return 1
+    if a < -0.5:
+        return -1
+    return 0
+
+
 if __name__ == '__main__':
 
     sentiment_model = flair.models.TextClassifier.load('en-sentiment')
@@ -140,10 +148,9 @@ if __name__ == '__main__':
                     score = 1 - sentence.labels[0].score
                 prev = (float(dtst[pos - 5][2]) + float(dtst[pos - 5][2])) / 2
                 next = (float(dtst[pos + 5][2]) + float(dtst[pos + 5][2])) / 2
-                delta = round((next - prev) / prev * 1000)
-                if pos % 10 == 0:
-                    writertest.writerow(
-                        [tweet_text, company, delta, score])
+                delta = round((next - prev) / prev * 200)
+                if pos % 10 == 1:
+                    writertest.writerow([tweet_text, company, delta, score])
                 else:
                     writer.writerow([tweet_text, company, delta, score])
 
@@ -162,14 +169,13 @@ if __name__ == '__main__':
 
     from sklearn.svm import LinearSVC
 
-    regr = LinearSVC()
+    regr = LinearSVC(tol=10**-8)
     regr.fit(train_x, train_y)
 
     import sklearn.metrics
 
     pred_company = regr.predict(test_x)
     print(sklearn.metrics.classification_report(test_y, pred_company))
-
 
     # print(tweet_text, dtst[pos])
 
