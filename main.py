@@ -14,6 +14,8 @@ import dateutil.parser as parser
 
 import pandas
 
+import csv
+
 
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
@@ -105,22 +107,33 @@ def get_company(tweet_text, tweet_author):
 if __name__ == '__main__':
 
     with open("dataset.csv", "w") as f:
-        tweets = pandas.read_csv("file.csv").values.tolist()
-        for tweet in tweets:
-            tweet_text = tweet[10].lower()
-            tweet_author = tweet[8].lower()
-            tweet_date = tweet[2]
+        with open("testtest.csv", "w") as f1:
+            writer = csv.writer(f)
+            writertest = csv.writer(f1)
+            writer.writerow(["text", "company", "prev", "next"])
+            writertest.writerow(["text", "company", "prev", "next"])
+            tweets = pandas.read_csv("file.csv").values.tolist()
+            pos = 0
+            for tweet in tweets:
+                tweet_text = tweet[10].lower()
+                tweet_author = tweet[8].lower()
+                tweet_date = tweet[2]
 
-            stock, company = get_company(tweet_text, tweet_author)
+                stock, company = get_company(tweet_text, tweet_author)
 
-            dtst, pos = get_price(stock, tweet_date)
-            if dtst is None:
-                continue
-            if pos+5 >= len(dtst):
-                continue
-            f.write(",".join([f'"{tweet_text}"', company, str((float(dtst[pos - 5][2]) + float(dtst[pos - 5][2])) / 2),
-                              str((float(dtst[pos + 5][2]) + float(dtst[pos + 5][2])) / 2)]) + "\n")
-
+                dtst, pos = get_price(stock, tweet_date)
+                if dtst is None:
+                    continue
+                if pos + 5 >= len(dtst):
+                    continue
+                if pos % 10 == 0:
+                    writertest.writerow(
+                        [tweet_text, company, str((float(dtst[pos - 5][2]) + float(dtst[pos - 5][2])) / 2),
+                         str((float(dtst[pos + 5][2]) + float(dtst[pos + 5][2])) / 2)])
+                else:
+                    writer.writerow([tweet_text, company, str((float(dtst[pos - 5][2]) + float(dtst[pos - 5][2])) / 2),
+                                     str((float(dtst[pos + 5][2]) + float(dtst[pos + 5][2])) / 2)])
+                pos += 1
         # print(tweet_text, dtst[pos])
 
     # companies = ["TSLA", "AAPL", "MSFT"]
