@@ -5,10 +5,14 @@
 import csv
 import datetime
 import json
+import sys
+import time
 
 import requests
 import twint
 import dateutil.parser as parser
+
+import pandas
 
 
 def print_hi(name):
@@ -51,81 +55,105 @@ def read_dataset(dataset_name):
 
 
 def load_prices(company, year, month, api_key):
-    with open(f'prices_{company}.csv', 'a') as f:
+    with open(f'prices_{company}_{year}_{month}.csv', 'a') as f:
         url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY_EXTENDED&symbol={company}&slice=year{year}month{month}&interval=1min&apikey={api_key}'
         r = requests.get(url)
         if "Thank you for using Alpha Vantage" in r.text:
             print("HUI", company, year, month, api_key)
+        f.write(r.text)
+
+
+def binary_search(a, x, lo=0, hi=None):
+    if hi is None:
+        hi = len(a)
+    while (hi - lo) > 1:
+        mid = (lo + hi) // 2
+        midval = parser.parse(a[mid][0])
+        if midval > x:
+            lo = mid + 1
         else:
-            f.write(r.text)
+            hi = mid
+    return lo
 
 
-# def get_prices(company, diff_year, diff_month, api_key):
-#     api_key = "33SS5F2NRROWMKSB"
-#     url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY_EXTENDED&symbol={company}&slice=year{diff_year}month{diff_month}&interval=1min&apikey={api_key}'
-#     r = requests.get(url)
-#     return list(map(lambda x: x.strip().split(','), r.text.split("\n")))[1:]
+companies = [("tesla", "TSLA"), ("apple", "AAPL"), ("facebook", "FB"), ("google", "GOOGL"), ("amazon", "AMZN")]
+
+datasets = {stock: read_dataset(f"prices_{stock}.csv") for _, stock in companies}
 
 
 def get_price(company, time):
     tweet_time = datetime.datetime.utcfromtimestamp(parser.parse(time).timestamp()).replace(second=0)
-    print(tweet_time)
+    # print(tweet_time)
 
-    cur_time = datetime.datetime.utcnow()
-    diff_year = cur_time.year - tweet_time.year + 1
-    diff_month = (cur_time.month - tweet_time.month) + 1
-    print(cur_time, diff_year, diff_month)
-    while diff_month < 0:
-        diff_month += 12
+    if company not in datasets:
+        return None, None
+    dtsset = datasets[company]
 
-    api_key = "33SS5F2NRROWMKSB"
-    while True:
-        prices = get_prices(company, diff_year, diff_month, api_key)
+    pos = binary_search(dtsset, tweet_time)
+    return dtsset, pos
 
-        first_day = parser.parse(prices[0][0])
-        last_day = parser.parse(prices[-2][0])
 
-        if first_day < tweet_time < last_day:
-            for i in range(len(prices)):
-                try:
-                    if tweet_time == parser.parse(prices[i][0]):
-                        print(i)
-                except:
-                    pass
-            break
-        if tweet_time < first_day:
-            diff_month += 1
-            if diff_month == 13:
-                diff_month = 1
-                diff_year += 1
-            continue
-        if tweet_time > last_day:
-            diff_month -= 1
-            if diff_month == 0:
-                diff_month = 12
-                diff_year -= 1
-            continue
-    # with open("broker_data.csv", "w") as f:
-    #     f.write(r.text)
-
-    # print(r.text)
+def get_company(tweet_text, tweet_author):
+    for company_name, stock_name in companies:
+        # print(tweet_text, company_name, tweet_author)
+        if company_name == tweet_author or company_name in tweet_text:
+            return stock_name, company_name
+    print("TI HUI", file=sys.stderr)
+    return "TI HUI", "Gavno"
 
 
 if __name__ == '__main__':
-    companies = ["TSLA", "AAPL", "SSNLF", "GOOGL", "FB", "AMZN"]
-    keys = ["301WO9K1YQ97AVVN", "CULGKENKCCM9LW82", "TTPZJJ506CIXEN0U", "NVH5GZFABN3IGX4K", "0BOFTJFOQNUMKP3C",
-            "33SS5F2NRROWMKSB", "EM1L7GOWOV4QZB78", "1XKF6GK39K8A4D8G", "AUUI5WZS13XS6FOA", "PWX810YR8BFF1EGK",
-            "3T4QLEIZ0QA0HXIE", "2ZMS069BXQBZCBSW", "HIVN74LGX8JV4FZ8", "L5S1U57Y8LCJC92W", "HDALGYBSXCFD4TOR",
-            "CKY4KGMWKWHDMTAX", "730H56GXTYX7CSE7", "V4I4WPU0QPES4FOT", "53ELYJTX5N53YFO1", "J4IK46J8WHKRVRMJ",
-            "11EOYJF3SYAR3BSO", "QQ2CO6HISV62Q28M", "V4FMXHGP6EXVN3HV", "7M8NKC06NXRUUM5C", "APYR5WLDPC7QGDFL",
-            "KMADT346UPLSF96H", "GXQU7FO19QGEHFMY", "KSQGHNTM8V4TCOGN", "7GP3F7A9FBXTOF47", "Q09DFH0OQEDEWQ9T"]
-    ind = 0
-    keys_ind = 0
-    for company in companies:
-        for year in range(1, 3):
-            for month in range(1, 13):
-                keys_ind = (keys_ind + 1) % len(keys)
-                load_prices(company, year, month, keys[keys_ind])
+
+    with open("dataset.csv", "w") as f:
+        tweets = pandas.read_csv("file.csv").values.tolist()
+        for tweet in tweets:
+            tweet_text = tweet[10].lower()
+            tweet_author = tweet[8].lower()
+            tweet_date = tweet[2]
+
+            stock, company = get_company(tweet_text, tweet_author)
+
+            dtst, pos = get_price(stock, tweet_date)
+            if dtst is None:
+                continue
+            if pos+5 >= len(dtst):
+                continue
+            f.write(",".join([f'"{tweet_text}"', company, str((float(dtst[pos - 5][2]) + float(dtst[pos - 5][2])) / 2),
+                              str((float(dtst[pos + 5][2]) + float(dtst[pos + 5][2])) / 2)]) + "\n")
+
+        # print(tweet_text, dtst[pos])
+
+    # companies = ["TSLA", "AAPL", "MSFT"]
+
+    # keys = ["301WO9K1YQ97AVVN", "CULGKENKCCM9LW82", "TTPZJJ506CIXEN0U", "NVH5GZFABN3IGX4K", "0BOFTJFOQNUMKP3C",
+    #         "33SS5F2NRROWMKSB", "EM1L7GOWOV4QZB78", "1XKF6GK39K8A4D8G", "AUUI5WZS13XS6FOA", "PWX810YR8BFF1EGK",
+    #         "3T4QLEIZ0QA0HXIE", "2ZMS069BXQBZCBSW", "HIVN74LGX8JV4FZ8", "L5S1U57Y8LCJC92W", "HDALGYBSXCFD4TOR",
+    #         "CKY4KGMWKWHDMTAX", "730H56GXTYX7CSE7", "V4I4WPU0QPES4FOT", "53ELYJTX5N53YFO1", "J4IK46J8WHKRVRMJ",
+    #         "11EOYJF3SYAR3BSO", "QQ2CO6HISV62Q28M", "V4FMXHGP6EXVN3HV", "7M8NKC06NXRUUM5C", "APYR5WLDPC7QGDFL",
+    #         "KMADT346UPLSF96H", "GXQU7FO19QGEHFMY", "KSQGHNTM8V4TCOGN", "7GP3F7A9FBXTOF47", "Q09DFH0OQEDEWQ9T"]
+    # ind = 0
+    # keys_ind = 0
+    # for company in companies:
+    #     for year in range(1, 3):
+    #         for month in range(1, 13):
+    #             ind += 1
+    #             if (ind == 6):
+    #                 ind = 0
+    #                 time.sleep(60)
+    #             keys_ind = (keys_ind + 1) % len(keys)
+    #             print(company, year, month, keys[keys_ind])
+    #             load_prices(company, year, month, keys[keys_ind])
+
+    # load_prices("TSLA", 2, 5, keys[0])
+    # load_prices("TSLA", 2, 11, keys[0])
+    # load_prices("AAPL", 1, 5, keys[0])
+    # load_prices("AAPL", 1, 11, keys[0])
+    # load_prices("AAPL", 2, 11, keys[0])
+    # load_prices("MSFT", 1, 5, "hui")
+    # load_prices("MSFT", 2, 5, keys[0])
+    # load_prices("MSFT", 2, 11, keys[0])
+
+    # load_prices("MSFT", 1, 1, keys[0])
 
     # for i in range(6, 11):
     #     load_prices("TSLA", 1, i, "301WO9K1YQ97AVVN")
