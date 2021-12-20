@@ -290,8 +290,8 @@ char_vectorizer = text.TfidfVectorizer(
 
 
 def read_dataset():
-    test_data = pandas.read_csv("dataset.csv")
-    train_data = pandas.read_csv("testtest.csv")
+    test_data = pandas.read_csv("dataset_v2.csv")
+    train_data = pandas.read_csv("testtest_v2.csv")
 
     train_data = train_data[train_data["text"].str.len() >= 3]
     test_data = test_data[test_data["text"].str.len() >= 3]
@@ -311,8 +311,8 @@ def read_for_company():
 
     train_data['cleanedText'] = train_data['text'].apply(cleaner.fit_for_company)
     test_data['cleanedText'] = test_data['text'].apply(cleaner.fit_for_company)
-    train_data['delta'] = round((train_data['next'] - train_data['prev']) / train_data['prev'] * 100)
-    test_data['delta'] = round((test_data['next'] - test_data['prev']) / test_data['prev'] * 100)
+    # train_data['delta'] = round((train_data['next'] - train_data['prev']) / train_data['prev'] * 100)
+    # test_data['delta'] = round((test_data['next'] - test_data['prev']) / test_data['prev'] * 100)
 
     return train_data, test_data
 
@@ -325,14 +325,25 @@ company_vectorizer = Pipeline([('feats', FeatureUnion([('word_ngram', word_vecto
 
 company_vectorizer = company_vectorizer.fit(train_data['cleanedText'])
 
-x_train = company_vectorizer.transform(train_data['cleanedText'])
-x_test = company_vectorizer.transform(test_data['cleanedText'])
 
+# print(train_data['cleanedText'].shape)
+x_train = (company_vectorizer.transform(train_data['cleanedText']))
+
+
+# print(train_data["sentiment"])
+# print(train_data["sentiment"].shape)
+x_train = np.hstack((x_train, train_data["sentiment"]))
+print(x_train)
+print(x_train.shape)
+# print(company_vectorizer.transform(train_data['cleanedText']).shape)
+# print(train_data["sentiment"].shape)
 y_train = train_data['delta']
 y_test = test_data['delta']
 
 from sklearn.svm import LinearSVC
 from sklearn.metrics import classification_report
+
+# print(x_train.shape)
 
 clf = LinearSVC()
 clf.fit(x_train, y_train)
