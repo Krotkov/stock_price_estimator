@@ -204,15 +204,29 @@ def fill_df():
                 pos += 1
 
 
-def predict_deltas(train_x, test_x, train_y, test_y):
+def estimate_probs(train_data):
+    # train_data["delta"]
+    # train_data["author6"]
+    # train_data["sentiment"]
+    train_data["weight"] = train_data["author6"].apply(lambda x: 0.3 if x == 1 else 1.3)
+    conditions = [((train_data["sentiment"] > 0.7) & (train_data["delta"] < 0)) |
+                  ((train_data["sentiment"] < 0.3) & (train_data["delta"] > 0))]
+    choices = [0.7]
+    train_data['weight_sentiment'] = np.select(conditions, choices, default=1.5)
+    train_data["weight"] = train_data["weight"] * train_data["weight_sentiment"]
+    # train_data["weight_sentiment"] = train_data["sentiment"]
+    return train_data
+
+
+def predict_deltas(train_x, test_x, train_y, test_y, weights):
     from sklearn.svm import LinearSVC, SVC
     from sklearn.preprocessing import StandardScaler
     from sklearn.pipeline import make_pipeline
 
     # clf = make_pipeline(StandardScaler(), SVC(gamma='auto'))
     # clf.fit(train_x, train_y)
-    regr = SVC(tol=10 ** -8)
-    regr.fit(train_x, train_y)
+    regr = LinearSVC(tol=10 ** -8)
+    regr.fit(train_x, train_y, sample_weight=weights)
 
     import sklearn.metrics
     pred_company = regr.predict(test_x)
@@ -220,6 +234,7 @@ def predict_deltas(train_x, test_x, train_y, test_y):
 
     print(sklearn.metrics.classification_report(test_y, pred_company))
     # print(sklearn.metrics.classification_report(test_y, clf_pred_company))
+
 
 
 MODES = {1: "sentiment", 2: "sentiment_author", 3: "fill_df", 4: "text", 5: "text_sentiment"}
@@ -233,30 +248,32 @@ if __name__ == '__main__':
     train_data = pandas.read_csv("dataset_v2.csv")
     test_data = pandas.read_csv("testtest_v2.csv")
 
+    estimate_probs(train_data)
+    weights = train_data['weight'].values
+
     train_x = []
     test_x = []
 
     train_y = train_data["delta"]
     test_y = test_data["delta"]
 
-    mode = int(input(f"Print the id of mode ({PROMPT})"))
-
+    mode = int(input(f"Print the id of mode ({PROMPT}):\n"))
 
     if mode == 1:
         train_x = np.reshape(train_data["sentiment"].values, (-1, 1))
         test_x = np.reshape(test_data["sentiment"].values, (-1, 1))
 
-        predict_deltas(train_x, test_x, train_y, test_y)
+        predict_deltas(train_x, test_x, train_y, test_y, weights)
     elif mode == 2:
         train_x = train_data[["sentiment", *AUTHORS_COLUMNS]].values
         test_x = test_data[["sentiment", *AUTHORS_COLUMNS]].values
 
-        predict_deltas(train_x, test_x, train_y, test_y)
+        predict_deltas(train_x, test_x, train_y, test_y, weights)
     elif mode == 3:
         fill_df()
     elif mode == 4 or mode == 5:
-        train_x, test_x, train_y, test_y = get_vectorized_text_attributes(mode)
+        train_x, test_x, train_y, test_y, weights = get_vectorized_text_attributes(mode)
         print(test_x.shape, test_y.shape)
         print(train_x.shape, train_y.shape)
-        predict_deltas(train_x, test_x, train_y, test_y)
+        predict_deltas(train_x, test_x, train_y, test_y, weights)
 

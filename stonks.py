@@ -306,12 +306,22 @@ def ff(a):
         return -1
     return 0
 
+def estimate_probs(train_data):
+    train_data["weight"] = train_data["author6"].apply(lambda x: 0.7 if x == 1 else 2)
+    conditions = [((train_data["sentiment"] > 0.7) & (train_data["delta"] < 0)) |
+                  ((train_data["sentiment"] < 0.3) & (train_data["delta"] > 0))]
+    choices = [0.7]
+    train_data['weight_sentiment'] = np.select(conditions, choices, default=1.4)
+    train_data["weight"] = train_data["weight"] * train_data["weight_sentiment"]
+    return train_data
+
 
 def read_for_company():
     train_data, test_data = read_dataset()
 
     train_data['cleanedText'] = train_data['text'].apply(cleaner.fit_for_company)
     test_data['cleanedText'] = test_data['text'].apply(cleaner.fit_for_company)
+    estimate_probs(train_data)
     # train_data['delta'] = round((train_data['next'] - train_data['prev']) / train_data['prev'] * 100)
     # test_data['delta'] = round((test_data['next'] - test_data['prev']) / test_data['prev'] * 100)
 
@@ -344,7 +354,7 @@ def get_vectorized_text_attributes(mod):
     # print(train_data["sentiment"].shape)
     y_train = train_data['delta']
     y_test = test_data['delta']
-    return x_train, x_test, y_train, y_test
+    return x_train, x_test, y_train, y_test, train_data["weight"].values
 
 # from sklearn.svm import LinearSVC
 # from sklearn import ensemble
