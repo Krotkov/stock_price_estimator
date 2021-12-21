@@ -8,6 +8,7 @@ import pandas
 import unicodedata
 from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction import text
+from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import FeatureUnion, Pipeline
 
 nltk.download('stopwords')
@@ -290,11 +291,11 @@ char_vectorizer = text.TfidfVectorizer(
 
 
 def read_dataset():
-    test_data = pandas.read_csv("dataset_v2.csv")
-    train_data = pandas.read_csv("testtest_v2.csv")
+    test_data = pandas.read_csv("testtest_v2.csv")
+    train_data = pandas.read_csv("dataset_v2.csv")
 
-    train_data = train_data[train_data["text"].str.len() >= 3]
-    test_data = test_data[test_data["text"].str.len() >= 3]
+    train_data = train_data[train_data["text"].str.len() >= 30]
+    test_data = test_data[test_data["text"].str.len() >= 30]
     return train_data, test_data
 
 
@@ -317,36 +318,45 @@ def read_for_company():
     return train_data, test_data
 
 
-train_data, test_data = read_for_company()
+def get_vectorized_text_attributes(mod):
+    train_data, test_data = read_for_company()
 
-company_vectorizer = Pipeline([('feats', FeatureUnion([('word_ngram', word_vectorizer),
-                                                       ('char_ngram', char_vectorizer)])
-                                )])
+    company_vectorizer = Pipeline([('feats', FeatureUnion([('word_ngram', word_vectorizer),
+                                                           ('char_ngram', char_vectorizer)])
+                                    )])
 
-company_vectorizer = company_vectorizer.fit(train_data['cleanedText'])
+    company_vectorizer = company_vectorizer.fit(train_data['cleanedText'])
 
-# print(train_data['cleanedText'].shape)
-x_train = (company_vectorizer.transform(train_data['cleanedText']))
-x_test = (company_vectorizer.transform(test_data['cleanedText']))
+    # print(train_data['cleanedText'].shape)
+    x_train = (company_vectorizer.transform(train_data['cleanedText']))
+    x_test = (company_vectorizer.transform(test_data['cleanedText']))
 
-# np.reshape(sentiment, (-1, 1))
-# print(sentiment.shape)
-# sentiment = (np.reshape(train_data["sentiment"].values, (-1, 1)))
-# x_train = np.column_stack((x_train.todense(), train_data["sentiment"].values.T))
-# x_test = np.column_stack((x_test.todense(), test_data["sentiment"].values.T))
-# print(company_vectorizer.transform(train_data['cleanedText']).shape)
-# print(train_data["sentiment"].shape)
-y_train = train_data['delta']
-y_test = test_data['delta']
+    if mod == 5:
+        x_train = np.column_stack((x_train.todense(), train_data["sentiment"].values.T))
+        x_test = np.column_stack((x_test.todense(), test_data["sentiment"].values.T))
 
-from sklearn.svm import LinearSVC
-from sklearn import ensemble
-from sklearn.metrics import classification_report, r2_score
+    # np.reshape(sentiment, (-1, 1))
+    # print(sentiment.shape)
+    # sentiment = (np.reshape(train_data["sentiment"].values, (-1, 1)))
 
-# print(x_train.shape)
 
-clf = LinearSVC()#SVC(tol=10**-12, max_iter=1000000)
-clf.fit(x_train, y_train)
+    # print(company_vectorizer.transform(train_data['cleanedText']).shape)
+    # print(train_data["sentiment"].shape)
+    y_train = train_data['delta']
+    y_test = test_data['delta']
+    return x_train, x_test, y_train, y_test
 
-pred_company = clf.predict(x_test)
-print(classification_report(y_test, pred_company))
+# from sklearn.svm import LinearSVC
+# from sklearn import ensemble
+# from sklearn.metrics import classification_report, r2_score
+#
+# # print(x_train.shape)
+#
+# # scikit_log_reg = LogisticRegression(C=100, max_iter=100000)
+# # clf = scikit_log_reg.fit(x_train, y_train)
+#
+# clf = LinearSVC()#SVC(tol=10**-12, max_iter=1000000)
+# clf.fit(x_train, y_train)
+#
+# pred_company = clf.predict(x_test)
+# print(classification_report(y_test, pred_company))

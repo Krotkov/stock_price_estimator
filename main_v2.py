@@ -81,30 +81,77 @@ def binary_search(a, x, lo=0, hi=None):
     return lo
 
 
-companies = [("tesla", "TSLA"), ("apple", "AAPL"), ("facebook", "FB"), ("google", "GOOGL"), ("amazon", "AMZN")]
+COMPANIES = [("tesla", "TSLA"), ("apple", "AAPL"), ("facebook", "FB"), ("google", "GOOGL"), ("amazon", "AMZN")]
 
-datasets = {stock: read_dataset(f"prices_{stock}.csv") for _, stock in companies}
+
+def get_market_data():
+    from config import KEYS
+    # print(tweet_text, dtst[pos])
+
+    companies = ["TSLA", "AAPL", "MSFT"]
+
+    keys = KEYS
+    ind = 0
+    keys_ind = 0
+    for company in companies:
+        for year in range(1, 3):
+            for month in range(1, 13):
+                ind += 1
+                if (ind == 6):
+                    ind = 0
+                    time.sleep(60)
+                keys_ind = (keys_ind + 1) % len(keys)
+                print(company, year, month, keys[keys_ind])
+                load_prices(company, year, month, keys[keys_ind])
+
+    load_prices("TSLA", 2, 5, keys[0])
+    load_prices("TSLA", 2, 11, keys[0])
+    load_prices("AAPL", 1, 5, keys[0])
+    load_prices("AAPL", 1, 11, keys[0])
+    load_prices("AAPL", 2, 11, keys[0])
+    load_prices("MSFT", 1, 5, "hui")
+    load_prices("MSFT", 2, 5, keys[0])
+    load_prices("MSFT", 2, 11, keys[0])
+
+    load_prices("MSFT", 1, 1, keys[0])
+
+    for i in range(6, 11):
+        load_prices("TSLA", 1, i, "301WO9K1YQ97AVVN")
+    dataset = read_dataset("file.csv")
+    get_price("TSLA", dataset[120][2])
+
+
+AUTHORS = {"tesla": 1, "elonmusk": 2, "apple": 3, "tim_cook": 4, "amazon": 5, "unofficial": 6}
+
+DATASETS = {stock: read_dataset(f"prices/prices_{stock}.csv") for _, stock in COMPANIES}
+
+AUTHORS_COLUMNS = [f"author{v}" for v in AUTHORS.values()]
 
 
 def get_price(company, time):
     tweet_time = datetime.datetime.utcfromtimestamp(parser.parse(time).timestamp()).replace(second=0)
     # print(tweet_time)
 
-    if company not in datasets:
+    if company not in DATASETS:
         return None, None
-    dtsset = datasets[company]
+    dtsset = DATASETS[company]
 
     pos = binary_search(dtsset, tweet_time)
     return dtsset, pos
 
 
 def get_company(tweet_text, tweet_author):
-    for company_name, stock_name in companies:
+    for company_name, stock_name in COMPANIES:
         # print(tweet_text, company_name, tweet_author)
         if company_name == tweet_author or company_name in tweet_text:
             return stock_name, company_name
-    print("TI HUI", file=sys.stderr)
-    return "TI HUI", "Gavno"
+    return "unfound", "unfound"
+
+def get_author(tweet_author):
+    id = AUTHORS.get(tweet_author, -1)
+    if id == -1:
+        id = AUTHORS.get("unofficial")
+    return tuple(int(id == i) for i in AUTHORS.values())
 
 
 def ff(a):
@@ -114,25 +161,25 @@ def ff(a):
         return -1
     return 0
 
-
-if __name__ == '__main__':
-
+def fill_df():
     sentiment_model = flair.models.TextClassifier.load('en-sentiment')
 
     with open("dataset_v2.csv", "w") as f:
         with open("testtest_v2.csv", "w") as f1:
             writer = csv.writer(f)
             writertest = csv.writer(f1)
-            writer.writerow(["text", "company", "delta", "sentiment"])
-            writertest.writerow(["text", "company", "delta", "sentiment"])
+            writer.writerow(["text", "company", "delta", "sentiment", *AUTHORS_COLUMNS])
+            writertest.writerow(["text", "company", "delta", "sentiment", *AUTHORS_COLUMNS])
             tweets = pandas.read_csv("file.csv").values.tolist()
             pos = 0
             for tweet in tweets:
                 tweet_text = tweet[10].lower()
                 tweet_author = tweet[8].lower()
+                tweet_account = tweet[7].lower()
                 tweet_date = tweet[2]
 
                 stock, company = get_company(tweet_text, tweet_author)
+                author_vectorized = get_author(tweet_account)
 
                 sentence = flair.data.Sentence(tweet_text)
                 prediction = sentiment_model.predict(sentence)
@@ -141,77 +188,75 @@ if __name__ == '__main__':
                 dtst, pos = get_price(stock, tweet_date)
                 if dtst is None:
                     continue
-                if pos + 5 >= len(dtst):
+                if pos + 24 * 60 >= len(dtst):
                     continue
                 score = sentence.labels[0].score
                 if sentence.labels[0].value == "NEGATIVE":
                     score = 1 - sentence.labels[0].score
-                prev = (float(dtst[pos - 5][2]) + float(dtst[pos - 5][2])) / 2
-                next = (float(dtst[pos + 5][2]) + float(dtst[pos + 5][2])) / 2
-                delta = round((next - prev) / prev * 200)
+                prev = (float(dtst[pos - 5][2]) + float(dtst[pos - 5][3])) / 2
+                next = (float(dtst[pos + 24 * 60][2]) + float(dtst[pos + 24 * 60][3])) / 2
+                delta = ff((next - prev) / prev * 100)
                 if pos % 10 == 1:
-                    writertest.writerow([tweet_text, company, delta, score])
+                    writertest.writerow([tweet_text, company, delta, score, *author_vectorized])
                 else:
-                    writer.writerow([tweet_text, company, delta, score])
+                    writer.writerow([tweet_text, company, delta, score, *author_vectorized])
 
                 pos += 1
 
+
+def predict_deltas(train_x, test_x, train_y, test_y):
+    from sklearn.svm import LinearSVC, SVC
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.pipeline import make_pipeline
+
+    # clf = make_pipeline(StandardScaler(), SVC(gamma='auto'))
+    # clf.fit(train_x, train_y)
+    regr = SVC(tol=10 ** -8)
+    regr.fit(train_x, train_y)
+
+    import sklearn.metrics
+    pred_company = regr.predict(test_x)
+    # clf_pred_company = clf.predict(test_x)
+
+    print(sklearn.metrics.classification_report(test_y, pred_company))
+    # print(sklearn.metrics.classification_report(test_y, clf_pred_company))
+
+
+MODES = {1: "sentiment", 2: "sentiment_author", 3: "fill_df", 4: "text", 5: "text_sentiment"}
+PROMPT = [f"{row[0]} for {row[1]}" for row in MODES.items()]
+
+
+if __name__ == '__main__':
     import numpy as np
+    from stonks import get_vectorized_text_attributes
 
     train_data = pandas.read_csv("dataset_v2.csv")
     test_data = pandas.read_csv("testtest_v2.csv")
 
-    train_x = np.reshape(train_data["sentiment"].values, (-1, 1))
-    test_x = np.reshape(test_data["sentiment"].values, (-1, 1))
+    train_x = []
+    test_x = []
 
     train_y = train_data["delta"]
     test_y = test_data["delta"]
 
-    from sklearn.svm import LinearSVC
+    mode = int(input(f"Print the id of mode ({PROMPT})"))
 
-    regr = LinearSVC(tol=10**-8)
-    regr.fit(train_x, train_y)
 
-    import sklearn.metrics
+    if mode == 1:
+        train_x = np.reshape(train_data["sentiment"].values, (-1, 1))
+        test_x = np.reshape(test_data["sentiment"].values, (-1, 1))
 
-    pred_company = regr.predict(test_x)
-    print(sklearn.metrics.classification_report(test_y, pred_company))
+        predict_deltas(train_x, test_x, train_y, test_y)
+    elif mode == 2:
+        train_x = train_data[["sentiment", *AUTHORS_COLUMNS]].values
+        test_x = test_data[["sentiment", *AUTHORS_COLUMNS]].values
 
-    # print(tweet_text, dtst[pos])
+        predict_deltas(train_x, test_x, train_y, test_y)
+    elif mode == 3:
+        fill_df()
+    elif mode == 4 or mode == 5:
+        train_x, test_x, train_y, test_y = get_vectorized_text_attributes(mode)
+        print(test_x.shape, test_y.shape)
+        print(train_x.shape, train_y.shape)
+        predict_deltas(train_x, test_x, train_y, test_y)
 
-    # companies = ["TSLA", "AAPL", "MSFT"]
-
-    # keys = ["301WO9K1YQ97AVVN", "CULGKENKCCM9LW82", "TTPZJJ506CIXEN0U", "NVH5GZFABN3IGX4K", "0BOFTJFOQNUMKP3C",
-    #         "33SS5F2NRROWMKSB", "EM1L7GOWOV4QZB78", "1XKF6GK39K8A4D8G", "AUUI5WZS13XS6FOA", "PWX810YR8BFF1EGK",
-    #         "3T4QLEIZ0QA0HXIE", "2ZMS069BXQBZCBSW", "HIVN74LGX8JV4FZ8", "L5S1U57Y8LCJC92W", "HDALGYBSXCFD4TOR",
-    #         "CKY4KGMWKWHDMTAX", "730H56GXTYX7CSE7", "V4I4WPU0QPES4FOT", "53ELYJTX5N53YFO1", "J4IK46J8WHKRVRMJ",
-    #         "11EOYJF3SYAR3BSO", "QQ2CO6HISV62Q28M", "V4FMXHGP6EXVN3HV", "7M8NKC06NXRUUM5C", "APYR5WLDPC7QGDFL",
-    #         "KMADT346UPLSF96H", "GXQU7FO19QGEHFMY", "KSQGHNTM8V4TCOGN", "7GP3F7A9FBXTOF47", "Q09DFH0OQEDEWQ9T"]
-    # ind = 0
-    # keys_ind = 0
-    # for company in companies:
-    #     for year in range(1, 3):
-    #         for month in range(1, 13):
-    #             ind += 1
-    #             if (ind == 6):
-    #                 ind = 0
-    #                 time.sleep(60)
-    #             keys_ind = (keys_ind + 1) % len(keys)
-    #             print(company, year, month, keys[keys_ind])
-    #             load_prices(company, year, month, keys[keys_ind])
-
-    # load_prices("TSLA", 2, 5, keys[0])
-    # load_prices("TSLA", 2, 11, keys[0])
-    # load_prices("AAPL", 1, 5, keys[0])
-    # load_prices("AAPL", 1, 11, keys[0])
-    # load_prices("AAPL", 2, 11, keys[0])
-    # load_prices("MSFT", 1, 5, "hui")
-    # load_prices("MSFT", 2, 5, keys[0])
-    # load_prices("MSFT", 2, 11, keys[0])
-
-    # load_prices("MSFT", 1, 1, keys[0])
-
-    # for i in range(6, 11):
-    #     load_prices("TSLA", 1, i, "301WO9K1YQ97AVVN")
-    # dataset = read_dataset("file.csv")
-    # get_price("TSLA", dataset[120][2])
