@@ -64,7 +64,7 @@ def load_prices(company, year, month, api_key):
         url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY_EXTENDED&symbol={company}&slice=year{year}month{month}&interval=1min&apikey={api_key}'
         r = requests.get(url)
         if "Thank you for using Alpha Vantage" in r.text:
-            print("HUI", company, year, month, api_key)
+            print("debug", company, year, month, api_key)
         f.write(r.text)
 
 
@@ -109,7 +109,7 @@ def get_market_data():
     load_prices("AAPL", 1, 5, keys[0])
     load_prices("AAPL", 1, 11, keys[0])
     load_prices("AAPL", 2, 11, keys[0])
-    load_prices("MSFT", 1, 5, "hui")
+    load_prices("MSFT", 1, 5, "aba")
     load_prices("MSFT", 2, 5, keys[0])
     load_prices("MSFT", 2, 11, keys[0])
 
@@ -155,9 +155,9 @@ def get_author(tweet_author):
 
 
 def ff(a):
-    if a > 0.5:
+    if a > 0.3:
         return 1
-    if a < -0.5:
+    if a < -0.3:
         return -1
     return 0
 
@@ -171,7 +171,7 @@ def fill_df():
             writer.writerow(["text", "company", "delta", "sentiment", *AUTHORS_COLUMNS])
             writertest.writerow(["text", "company", "delta", "sentiment", *AUTHORS_COLUMNS])
             tweets = pandas.read_csv("file.csv").values.tolist()
-            pos = 0
+            pos1 = 0
             for tweet in tweets:
                 tweet_text = tweet[10].lower()
                 tweet_author = tweet[8].lower()
@@ -188,27 +188,27 @@ def fill_df():
                 dtst, pos = get_price(stock, tweet_date)
                 if dtst is None:
                     continue
-                if pos + 24 * 60 >= len(dtst):
+                if pos + 1 * 60 >= len(dtst):
                     continue
                 score = sentence.labels[0].score
                 if sentence.labels[0].value == "NEGATIVE":
                     score = 1 - sentence.labels[0].score
-                prev = (float(dtst[pos - 5][2]) + float(dtst[pos - 5][3])) / 2
-                next = (float(dtst[pos + 24 * 60][2]) + float(dtst[pos + 24 * 60][3])) / 2
-                delta = ff((next - prev) / prev * 100)
-                if pos % 10 == 1:
+                prev = (float(dtst[pos - 0][2]) + float(dtst[pos - 0][3])) / 2
+                next = (float(dtst[pos + 1 * 60][2]) + float(dtst[pos + 1 * 60][3])) / 2
+                delta = round((next - prev) / prev * 200)
+                if pos1 % 10 == 1:
                     writertest.writerow([tweet_text, company, delta, score, *author_vectorized])
                 else:
                     writer.writerow([tweet_text, company, delta, score, *author_vectorized])
 
-                pos += 1
+                pos1 += 1
 
 
 def estimate_probs(train_data):
     # train_data["delta"]
     # train_data["author6"]
     # train_data["sentiment"]
-    train_data["weight"] = train_data["author6"].apply(lambda x: 0.3 if x == 1 else 1.3)
+    train_data["weight"] = train_data["author6"].apply(lambda x: 0.3 if x == 1 else 20.3)
     conditions = [((train_data["sentiment"] > 0.7) & (train_data["delta"] < 0)) |
                   ((train_data["sentiment"] < 0.3) & (train_data["delta"] > 0))]
     choices = [0.7]
@@ -225,7 +225,7 @@ def predict_deltas(train_x, test_x, train_y, test_y, weights):
 
     # clf = make_pipeline(StandardScaler(), SVC(gamma='auto'))
     # clf.fit(train_x, train_y)
-    regr = LinearSVC(tol=10 ** -8)
+    regr = LinearSVC(tol=10 ** -8, max_iter=1000000)
     regr.fit(train_x, train_y, sample_weight=weights)
 
     import sklearn.metrics
@@ -237,7 +237,7 @@ def predict_deltas(train_x, test_x, train_y, test_y, weights):
 
 
 
-MODES = {1: "sentiment", 2: "sentiment_author", 3: "fill_df", 4: "text", 5: "text_sentiment"}
+MODES = {1: "sentiment", 2: "sentiment_author", 3: "fill_df", 4: "text", 5: "text_sentiment", 6: "all"}
 PROMPT = [f"{row[0]} for {row[1]}" for row in MODES.items()]
 
 
@@ -271,9 +271,9 @@ if __name__ == '__main__':
         predict_deltas(train_x, test_x, train_y, test_y, weights)
     elif mode == 3:
         fill_df()
-    elif mode == 4 or mode == 5:
+    elif mode == 4 or mode == 5 or mode == 6:
         train_x, test_x, train_y, test_y, weights = get_vectorized_text_attributes(mode)
-        print(test_x.shape, test_y.shape)
         print(train_x.shape, train_y.shape)
+        print(test_x.shape, test_y.shape)
         predict_deltas(train_x, test_x, train_y, test_y, weights)
 

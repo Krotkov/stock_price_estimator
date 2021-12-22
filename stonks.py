@@ -328,6 +328,8 @@ def read_for_company():
     return train_data, test_data
 
 
+from main_v2 import AUTHORS_COLUMNS
+
 def get_vectorized_text_attributes(mod):
     train_data, test_data = read_for_company()
 
@@ -341,9 +343,25 @@ def get_vectorized_text_attributes(mod):
     x_train = (company_vectorizer.transform(train_data['cleanedText']))
     x_test = (company_vectorizer.transform(test_data['cleanedText']))
 
-    if mod == 5:
+    if mod == 5 or mod == 6:
         x_train = np.column_stack((x_train.todense(), train_data["sentiment"].values.T))
         x_test = np.column_stack((x_test.todense(), test_data["sentiment"].values.T))
+
+    if mod == 6:
+        print(x_train.shape)
+        print(x_test.shape)
+
+        print(train_data[[*AUTHORS_COLUMNS]].shape)
+        print(test_data[[*AUTHORS_COLUMNS]].shape)
+
+        x_train = np.column_stack((x_train, train_data[[*AUTHORS_COLUMNS]].values))
+        x_test = np.column_stack((x_test, test_data[[*AUTHORS_COLUMNS]].values))
+
+        print(x_train.shape)
+        print(x_test.shape)
+
+
+
 
     # np.reshape(sentiment, (-1, 1))
     # print(sentiment.shape)
